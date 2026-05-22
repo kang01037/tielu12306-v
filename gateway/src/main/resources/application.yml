@@ -1,0 +1,36 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gateway
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        - id: service-user
+          uri: lb://service-user
+          predicates:
+            - Path=/api/user/**
+        - id: service-train
+          uri: lb://service-train
+          predicates:
+            - Path=/api/train/**,/api/station/**,/api/train-station/**
+        - id: service-ticket
+          uri: lb://service-ticket
+          predicates:
+            - Path=/api/ticket/**
+        - id: service-order
+          uri: lb://service-order
+          predicates:
+            - Path=/api/order/**
+        - id: service-pay
+          uri: lb://service-pay
+          predicates:
+            - Path=/api/pay/**
