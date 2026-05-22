@@ -17,6 +17,12 @@ spring:
     nacos:
       discovery:
         server-addr: localhost:8848
+  task:
+    scheduling:
+      enabled: true
+      thread-name-prefix: scheduler-
+      pool:
+        size: 5
 
 mybatis-plus:
   mapper-locations: classpath:mapper/*.xml
@@ -28,3 +34,6 @@ mybatis-plus:
       logic-delete-field: deleted
       logic-delete-value: 1
       logic-not-delete-value: 0
+
+order:
+  timeout-minutes: 30

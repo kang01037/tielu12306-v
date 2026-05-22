@@ -6,17 +6,21 @@ import com.tielu.order.dto.response.OrderResponse;
 import com.tielu.order.entity.TicketOrder;
 import com.tielu.order.service.OrderService;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/order")
-@RequiredArgsConstructor
 public class OrderController {
 
     private final OrderService orderService;
+
+    @Autowired
+    public OrderController(OrderService orderService) {
+        this.orderService = orderService;
+    }
 
     @PostMapping
     public Result<TicketOrder> createOrder(@Valid @RequestBody CreateOrderRequest request) {
@@ -44,5 +48,18 @@ public class OrderController {
     public Result<Void> refundOrder(@PathVariable String orderNo) {
         orderService.refundOrder(orderNo);
         return Result.success();
+    }
+
+    @PostMapping("/{orderNo}/pay/callback")
+    public Result<Void> handlePaymentCallback(@PathVariable String orderNo,
+                                               @RequestParam String transactionId) {
+        orderService.handlePaymentCallback(orderNo, transactionId);
+        return Result.success();
+    }
+
+    @PostMapping("/{orderNo}/change")
+    public Result<OrderResponse> changeOrder(@PathVariable String orderNo,
+                                              @Valid @RequestBody CreateOrderRequest newRequest) {
+        return Result.success(orderService.changeOrder(orderNo, newRequest));
     }
 }

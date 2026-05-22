@@ -37,6 +37,7 @@ public enum ErrorCode {
     PAY_TIMEOUT(5002, "支付超时"),
     PAY_SIGN_ERROR(5003, "支付签名验证失败"),
     REFUND_FAILED(5004, "退款失败"),
+    PAYMENT_RECORD_NOT_EXIST(5005, "支付记录不存在"),
 
     PASSENGER_NOT_EXIST(6001, "乘车人不存在"),
     PASSENGER_LIMIT_REACHED(6002, "乘车人数量已达上限"),

@@ -18,4 +18,8 @@ public interface OrderService extends IService<TicketOrder> {
     void cancelOrder(String orderNo);
 
     void refundOrder(String orderNo);
+
+    void handlePaymentCallback(String orderNo, String transactionId);
+
+    OrderResponse changeOrder(String orderNo, CreateOrderRequest newRequest);
 }

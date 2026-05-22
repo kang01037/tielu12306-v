@@ -13,6 +13,7 @@ import com.tielu.order.dto.response.OrderResponse;
 import com.tielu.order.dto.response.SeatAvailabilityResponse;
 import com.tielu.order.entity.TicketOrder;
 import com.tielu.order.entity.TicketOrderItem;
+import com.tielu.order.feign.PayFeignClient;
 import com.tielu.order.feign.TicketFeignClient;
 import com.tielu.order.feign.TrainFeignClient;
 import com.tielu.order.mapper.TicketOrderItemMapper;
@@ -35,16 +36,19 @@ public class OrderServiceImpl extends ServiceImpl<TicketOrderMapper, TicketOrder
     private final TicketOrderItemMapper orderItemMapper;
     private final TicketFeignClient ticketFeignClient;
     private final TrainFeignClient trainFeignClient;
+    private final PayFeignClient payFeignClient;
 
     @Autowired
     public OrderServiceImpl(TicketOrderMapper orderMapper,
                             TicketOrderItemMapper orderItemMapper,
                             TicketFeignClient ticketFeignClient,
-                            TrainFeignClient trainFeignClient) {
+                            TrainFeignClient trainFeignClient,
+                            PayFeignClient payFeignClient) {
         this.orderMapper = orderMapper;
         this.orderItemMapper = orderItemMapper;
         this.ticketFeignClient = ticketFeignClient;
         this.trainFeignClient = trainFeignClient;
+        this.payFeignClient = payFeignClient;
     }
 
     private static final Map<Integer, String> STATUS_TEXT_MAP = Map.of(
@@ -166,6 +170,66 @@ public class OrderServiceImpl extends ServiceImpl<TicketOrderMapper, TicketOrder
 
         order.setStatus(3);
         orderMapper.updateById(order);
+
+        ticketFeignClient.releaseInventory(order.getTrainId(), order.getTravelDate().toString(), "", 1);
+    }
+
+    @Override
+    @Transactional
+    public void handlePaymentCallback(String orderNo, String transactionId) {
+        LambdaQueryWrapper<TicketOrder> query = new LambdaQueryWrapper<TicketOrder>()
+                .eq(TicketOrder::getOrderNo, orderNo);
+        TicketOrder order = orderMapper.selectOne(query);
+        if (order == null) {
+            throw new BusinessException(ErrorCode.ORDER_NOT_EXIST);
+        }
+        if (order.getStatus() != 0) {
+            throw new BusinessException(ErrorCode.ORDER_STATUS_ERROR);
+        }
+
+        order.setStatus(1);
+        order.setPayTime(LocalDateTime.now().toString());
+        orderMapper.updateById(order);
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse changeOrder(String orderNo, CreateOrderRequest newRequest) {
+        LambdaQueryWrapper<TicketOrder> query = new LambdaQueryWrapper<TicketOrder>()
+                .eq(TicketOrder::getOrderNo, orderNo);
+        TicketOrder oldOrder = orderMapper.selectOne(query);
+        if (oldOrder == null) {
+            throw new BusinessException(ErrorCode.ORDER_NOT_EXIST);
+        }
+        if (oldOrder.getStatus() != 0 && oldOrder.getStatus() != 1) {
+            throw new BusinessException(ErrorCode.ORDER_STATUS_ERROR);
+        }
+
+        Result<TrainDTO> trainResult = trainFeignClient.getTrainEntity(newRequest.getTrainId());
+        TrainDTO train = trainResult.getData();
+        if (train == null) {
+            throw new BusinessException(ErrorCode.TRAIN_NOT_EXIST);
+        }
+
+        String travelDateStr = newRequest.getTravelDate().toString();
+        Result<SeatAvailabilityResponse> availabilityResult = ticketFeignClient.getSeatAvailability(
+                newRequest.getTrainId(), travelDateStr);
+        SeatAvailabilityResponse availability = availabilityResult.getData();
+        if (availability == null || availability.getAvailableSeats() == null || availability.getAvailableSeats() <= 0) {
+            throw new BusinessException(ErrorCode.TICKET_NOT_ENOUGH);
+        }
+
+        ticketFeignClient.releaseInventory(oldOrder.getTrainId(), oldOrder.getTravelDate().toString(), "", 1);
+
+        oldOrder.setTrainId(newRequest.getTrainId());
+        oldOrder.setTravelDate(newRequest.getTravelDate());
+        oldOrder.setFromStationId(newRequest.getFromStationId());
+        oldOrder.setToStationId(newRequest.getToStationId());
+        oldOrder.setAmount(newRequest.getAmount());
+        oldOrder.setStatus(4);
+        orderMapper.updateById(oldOrder);
+
+        return convertToResponse(oldOrder);
     }
 
     private OrderResponse convertToResponse(TicketOrder order) {
